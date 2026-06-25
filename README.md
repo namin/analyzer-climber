@@ -139,8 +139,8 @@ Useful proposal:
   incl. nested clampIndex(_, clampIndex(_,0,0), clampIndex(_,9,9))
 
 Payoff:
-  The verifier learned what clampIndex means.
-  The program did not change.
+  from ⊤ to proof:
+  the program wasn't rewritten; it was understood.
 ```
 
 ## File map

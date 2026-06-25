@@ -44,7 +44,7 @@ def demoReport : String :=
       s!"  nested clampIndex(_, clampIndex(_,0,0), clampIndex(_,9,9)) verifies: "
         ++ s!"{checkClient? analyzerWithPreciseClamp nestedClient}  (compositional reuse)",
       "",
-      "The program did not change. The verifier learned what clampIndex means." ]
+      "from ⊤ to proof: the program wasn't rewritten; it was understood." ]
 
 #eval IO.println demoReport
 
