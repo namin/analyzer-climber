@@ -8,9 +8,9 @@ verifier checks only that `index` is always in bounds. `score` counts how many
 clients an analyzer can verify — the number that makes *learning* visible:
 
 ```
-baseline:            0 / 12 clients verified
-sound but useless:   0 / 12 clients verified
-sound and precise:  12 / 12 clients verified
+baseline:            0 / 13 clients verified
+sound but useless:   0 / 13 clients verified
+sound and precise:  13 / 13 clients verified
 ```
 
 The payoff is `verified_client_safe`: a passing Boolean check implies a real
@@ -49,9 +49,23 @@ def mainClient : Client :=
     len   := 10
     index := clampCall userInput (lit 0) (lit 9) }
 
+/-- A *compositional* client: the outer `clampIndex`'s bounds are themselves
+`clampIndex` calls. The outer summary can only fire once the inner summaries
+have refined `clampIndex(otherInput,0,0)` to the exact `[0,0]` and
+`clampIndex(thirdInput,9,9)` to the exact `[9,9]`. With `clampIndex` unknown
+(or merely `⊤`) the inner calls stay `⊤`, the outer bounds are unknown, and the
+access does not verify — so this client verifies *only* after the precise
+summary is admitted, and it needs the summary used compositionally. -/
+def nestedClient : Client :=
+  { name  := "len 10,  clampIndex(userInput, clampIndex(otherInput,0,0), clampIndex(thirdInput,9,9))"
+    len   := 10
+    index := clampCall userInput
+               (clampCall (Expr.var "otherInput") (lit 0) (lit 0))
+               (clampCall (Expr.var "thirdInput") (lit 9) (lit 9)) }
+
 /-- Later clients that arrive after the summary is admitted. None of them
-require a new proposal; the durable summary verifies them all. The last is a
-nested clamp, demonstrating compositional reuse. -/
+require a new proposal; the durable summary verifies them all. The last two are
+nested clamps, demonstrating compositional reuse. -/
 def laterClients : List Client :=
   [ { name := "len 1,   clampIndex(userInput,0,0)",
       len := 1,   index := clampCall userInput (lit 0) (lit 0) },
@@ -75,7 +89,8 @@ def laterClients : List Client :=
       len := 100, index := clampCall userInput (lit 10) (lit 99) },
     { name := "len 21,  clampIndex(clampIndex(userInput,0,99),10,20)",
       len := 21,
-      index := clampCall (clampCall userInput (lit 0) (lit 99)) (lit 10) (lit 20) } ]
+      index := clampCall (clampCall userInput (lit 0) (lit 99)) (lit 10) (lit 20) },
+    nestedClient ]
 
 /-- All demo clients: the headline client plus the later arrivals. -/
 def clients : List Client := mainClient :: laterClients
@@ -84,18 +99,36 @@ def clients : List Client := mainClient :: laterClients
 def score (an : Analyzer sem) : Nat :=
   clients.foldl (fun acc c => if checkClient? an c then acc + 1 else acc) 0
 
-/-! ### Executable checks: the learning curve
+/-! ### The learning curve, as named theorems
 
-The baseline and the (sound but useless) top summary verify nothing; the
-precise summary verifies every client. -/
+The baseline and the (sound but useless) top summary verify nothing; the precise
+summary verifies every client. Each fact is checked by reduction at build time
+(`by decide`, no `native_decide`), so the names below are citable on slides. -/
 
-#guard checkClient? (Analyzer.base sem) mainClient == false
-#guard checkClient? analyzerWithTopClamp mainClient == false
-#guard checkClient? analyzerWithPreciseClamp mainClient == true
+/-- Before: the unknown `clampIndex` leaves the headline client unverified. -/
+theorem mainClient_not_verified_before :
+    checkClient? (Analyzer.base sem) mainClient = false := by decide
+/-- With the top summary admitted: still unverified — sound but useless. -/
+theorem mainClient_not_verified_with_top :
+    checkClient? analyzerWithTopClamp mainClient = false := by decide
+/-- After the precise summary is admitted: the headline client verifies. -/
+theorem mainClient_verified_after :
+    checkClient? analyzerWithPreciseClamp mainClient = true := by decide
 
-#guard score (Analyzer.base sem) == 0
-#guard score analyzerWithTopClamp == 0
-#guard score analyzerWithPreciseClamp == clients.length
+/-- Before: no client verifies. -/
+theorem score_before : score (Analyzer.base sem) = 0 := by decide
+/-- With top admitted: still no client verifies. -/
+theorem score_with_top : score analyzerWithTopClamp = 0 := by decide
+/-- After precise admitted: every client verifies. -/
+theorem score_after : score analyzerWithPreciseClamp = clients.length := by decide
+
+/-- The compositional client needs the summary used at depth: unverified under
+the unknown `clampIndex`… -/
+theorem nestedClient_not_verified_before :
+    checkClient? (Analyzer.base sem) nestedClient = false := by decide
+/-- …and verified once the precise summary is admitted and reused compositionally. -/
+theorem nestedClient_verified_after :
+    checkClient? analyzerWithPreciseClamp nestedClient = true := by decide
 
 /-! ### From a passing check to a real runtime guarantee -/
 

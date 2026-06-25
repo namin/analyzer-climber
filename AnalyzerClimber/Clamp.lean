@@ -31,13 +31,20 @@ def offByOneClampTransfer : Transfer := fun _ alo ahi =>
       if h : lo ≤ hp then AbsVal.interval lo hp h else AbsVal.top
   | _, _ => AbsVal.top
 
-/-- Concrete witness of the example in the spec: `clamp(_, [0,0], [9,9])`
-is claimed to be `[0, 8]`. -/
-example :
+/-- **Concrete counterexample.** The off-by-one summary *proposes* that
+`clampIndex(_, 0, 9)` lands in `[0, 8]`; but the *actual* `clampIndex(9, 0, 9)`
+is `9`, and `9 ∉ [0, 8]`. This one instance is what makes the soundness
+proposition below false. -/
+theorem offByOne_counterexample :
     offByOneClampTransfer AbsVal.top
         (AbsVal.interval 0 0 (by omega)) (AbsVal.interval 9 9 (by omega))
-      = AbsVal.interval 0 8 (by omega) := by
-  rfl
+        = AbsVal.interval 0 8 (by omega)
+    ∧ clampIndexConcrete 9 0 9 = 9
+    ∧ ¬ (AbsVal.interval 0 8 (by omega)).contains 9 := by
+  refine ⟨rfl, rfl, ?_⟩
+  intro h
+  have h2 : (9 : Nat) ≤ 8 := h.2
+  omega
 
 /-- **Kernel rejection.** The off-by-one summary is *not* sound: with
 `x = 9, lo = 0, hi = 9` the concrete `clampIndex 9 0 9 = 9`, but the summary
@@ -70,6 +77,13 @@ def topClampCertified : CertifiedTransfer sem FnName.clampIndex :=
 /-- The analyzer after admitting the top summary. -/
 def analyzerWithTopClamp : Analyzer sem :=
   (Analyzer.base sem).install topClampCertified
+
+/-- Slide contrast (top): on the headline bounds `lo=0, hi=9`, the top summary
+yields no information — `⊤`. -/
+theorem topClamp_0_9_is_top :
+    topClampTransfer AbsVal.top
+        (AbsVal.interval 0 0 (by omega)) (AbsVal.interval 9 9 (by omega))
+      = AbsVal.top := rfl
 
 /-! ## 3. Admitted and useful candidate: precise -/
 
@@ -110,6 +124,14 @@ def preciseClampCertified : CertifiedTransfer sem FnName.clampIndex :=
 /-- The analyzer after admitting the precise summary. -/
 def analyzerWithPreciseClamp : Analyzer sem :=
   (Analyzer.base sem).install preciseClampCertified
+
+/-- Slide contrast (precise): on the same headline bounds `lo=0, hi=9`, the
+precise summary yields the exact interval `[0, 9]` — enough to verify a
+length-10 array access. -/
+theorem preciseClamp_0_9_is_interval :
+    preciseClampTransfer AbsVal.top
+        (AbsVal.interval 0 0 (by omega)) (AbsVal.interval 9 9 (by omega))
+      = AbsVal.interval 0 9 (by omega) := rfl
 
 /-- The precise transformer is never less sound than top: whatever it claims,
 top would also admit. It simply carries strictly more information when exact

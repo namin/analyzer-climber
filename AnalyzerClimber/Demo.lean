@@ -21,24 +21,28 @@ def demoReport : String :=
   String.intercalate "\n"
     [ "Analyzer Climber demo",
       "---------------------",
-      "baseline analyzer:",
+      "baseline analyzer (clampIndex unknown):",
       s!"  verified clients: {score (Analyzer.base sem)} / {n}",
       "",
       "candidate: off-by-one clamp summary  [lo, hi-1]",
       "  status: rejected",
-      "  reason: theorem offByOneClamp_unsound (soundness proposition is false)",
+      "  counterexample: proposes clampIndex(_,0,9) ∈ [0,8],",
+      "                  but actual clampIndex(9,0,9) = 9  (offByOne_counterexample)",
+      "  general reason: theorem offByOneClamp_unsound (soundness is false)",
       "",
       "candidate: top clamp summary  ⊤",
       "  status: admitted (sound)",
-      s!"  verified clients: {score analyzerWithTopClamp} / {n}",
+      s!"  verified clients: {score analyzerWithTopClamp} / {n}   (sound but useless)",
       "",
       "candidate: precise clamp summary  [lo, hi]",
       "  status: admitted (sound)",
-      s!"  verified clients: {score analyzerWithPreciseClamp} / {n}",
+      s!"  verified clients: {score analyzerWithPreciseClamp} / {n}   (sound and useful)",
       "",
       "after admission:",
-      "  original client verifies",
+      "  original client verifies                  (mainClient_verified_after)",
       "  later clients verify with no new proposals",
+      s!"  nested clampIndex(_, clampIndex(_,0,0), clampIndex(_,9,9)) verifies: "
+        ++ s!"{checkClient? analyzerWithPreciseClamp nestedClient}  (compositional reuse)",
       "",
       "The program did not change. The verifier learned what clampIndex means." ]
 
@@ -50,5 +54,7 @@ def demoReport : String :=
 #guard score analyzerWithTopClamp == 0
 #guard score analyzerWithPreciseClamp == clients.length
 #guard checkClient? analyzerWithPreciseClamp mainClient == true
+#guard checkClient? (Analyzer.base sem) nestedClient == false
+#guard checkClient? analyzerWithPreciseClamp nestedClient == true
 
 end AnalyzerClimber

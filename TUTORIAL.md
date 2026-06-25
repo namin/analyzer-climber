@@ -28,9 +28,9 @@ The fix is *not* to change the program. It is to teach the analyzer what
 `clampIndex` means, in a way the kernel will believe. That is the whole artifact:
 
 ```
-baseline:            0 / 12 clients verified
-sound but useless:   0 / 12 clients verified
-sound and precise:  12 / 12 clients verified
+baseline:            0 / 13 clients verified
+sound but useless:   0 / 13 clients verified
+sound and precise:  13 / 13 clients verified
 ```
 
 Three numbers. Speculation is cheap, soundness is necessary, usefulness is a
@@ -281,21 +281,24 @@ def checkClient? (an : Analyzer sem) (c : Client) : Bool :=
   safeForLen? (analyze an topEnv c.index) c.len
 ```
 
-`score` just counts the clients an analyzer can verify, over a fixed list of 12
-(the headline client plus eleven later arrivals, including a *nested* clamp to
-show the summary composes). The three `#guard`s are the three numbers on the
-slide, checked at build time:
+`score` just counts the clients an analyzer can verify, over a fixed list of 13
+(the headline client plus twelve later arrivals, two of them *nested* clamps to
+show the summary composes). The three numbers on the slide are named theorems,
+each proved by reduction at build time (`by decide`, no `native_decide`):
 
 ```lean
-#guard score (Analyzer.base sem)        == 0                 -- knows nothing
-#guard score analyzerWithTopClamp       == 0                 -- sound, useless
-#guard score analyzerWithPreciseClamp   == clients.length    -- sound, useful: 12
+theorem score_before   : score (Analyzer.base sem)      = 0             := by decide
+theorem score_with_top : score analyzerWithTopClamp     = 0             := by decide
+theorem score_after    : score analyzerWithPreciseClamp = clients.length := by decide
 ```
 
 This is what makes the artifact *feel like learning* rather than verification: the
-same fixed suite, the same unchanged programs, a number that climbs from 0 to 12
+same fixed suite, the same unchanged programs, a number that climbs from 0 to 13
 the instant a certified summary is installed — and stays there for every later
-client, with no new proposal.
+client, with no new proposal. One client is *compositional*
+(`nestedClient`): its outer clamp's bounds are themselves clamp calls, so the
+summary has to fire at depth to make those bounds exact — it verifies only after
+admission (`nestedClient_not_verified_before` / `nestedClient_verified_after`).
 
 ### The payoff: a green check is a runtime guarantee
 
